@@ -2,4 +2,4 @@
 "create-solana-dapp": patch
 ---
 
-Circleci project setup
+Added CircleCI configuration for continuous integration.
