@@ -88,4 +88,4 @@ jobs:
 
           cd sandbox
           ${{ matrix.pm }} install
-          ${{ matrix.pm }} run ci
+          ${{ matrix.pm }} run build
