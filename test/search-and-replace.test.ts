@@ -98,7 +98,7 @@ describe('searchAndReplace', () => {
   })
 
   it('should handle errors gracefully', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const consoleErrorSpy = vi.spyOn(console, 'error')
 
     // Mock the file system and simulate an error for readFile
     mockFs({
