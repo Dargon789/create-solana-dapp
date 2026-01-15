@@ -1,13 +1,21 @@
 import { intro, log, outro } from '@clack/prompts'
 import { program } from 'commander'
 import * as process from 'node:process'
-import { findTemplate, listTemplates, Template } from '../templates/templates'
+import { fetchTemplateData } from './fetch-template-data'
+import { findTemplate } from './find-template'
 import { AppInfo } from './get-app-info'
 import { GetArgsResult } from './get-args-result'
+import { getMenuConfig } from './get-menu-config'
 import { getPrompts } from './get-prompts'
+import { getTemplatesUrl } from './get-templates-url'
+import { listTemplateIds } from './list-template-ids'
+import { listTemplates } from './list-templates'
 import { listVersions } from './list-versions'
 import { runVersionCheck } from './run-version-check'
+import { Template } from './template'
 import { PackageManager } from './vendor/package-manager'
+
+const minimalTemplateName = 'nextjs-anchor'
 
 export async function getArgs(argv: string[], app: AppInfo, pm: PackageManager = 'npm'): Promise<GetArgsResult> {
   // Get the result from the command line
@@ -21,12 +29,15 @@ export async function getArgs(argv: string[], app: AppInfo, pm: PackageManager =
     .option('--bun', help(`Use bun as the package manager`), false)
     .option('-d, --dry-run', help('Dry run (default: false)'))
     .option('-t, --template <template-name>', help('Use a template'))
+    .option('--list-template-ids', help('List available template ids as JSON array'))
     .option('--list-templates', help('List available templates'))
     .option('--list-versions', help('Verify your versions of Anchor, AVM, Rust, and Solana'))
+    .option('--minimal', help(`Select the minimal template (${minimalTemplateName})`), false)
     .option('--skip-git', help('Skip git initialization'))
     .option('--skip-init', help('Skip running the init script'))
     .option('--skip-install', help('Skip installing dependencies'))
     .option('--skip-version-check', help('Skip checking for CLI updates (not recommended)'))
+    .option('--templates-url', help('Url to templates.json'), getTemplatesUrl())
     .option('-v, --verbose', help('Verbose output (default: false)'))
     .helpOption('-h, --help', help('Display help for command'))
     .addHelpText(
@@ -47,15 +58,24 @@ Examples:
   const result = input.opts()
   const verbose = result.verbose ?? false
 
+  // Fetch the templates url, parse the template data and create menu items following our menu config
+  const { items, templates } = await fetchTemplateData({ config: getMenuConfig(), url: result.templatesUrl, verbose })
+
   if (result.listVersions) {
     listVersions()
     process.exit(0)
   }
+
   if (result.listTemplates) {
-    listTemplates()
+    listTemplates({ templates })
     outro(
       `\uD83D\uDCA1 To use a template, run "${app.name}${name ? ` ${name}` : ''} --template <template-name>" or "--template <github-org>/<github-repo>" `,
     )
+    process.exit(0)
+  }
+
+  if (result.listTemplateIds) {
+    console.log(JSON.stringify(listTemplateIds({ templates })))
     process.exit(0)
   }
   let packageManager = result.packageManager ?? pm
@@ -85,15 +105,23 @@ Examples:
 
   let template: Template | undefined
 
+  if (result.template && result.minimal) {
+    throw new Error(`The --minimal flag can't be used in combination with --template. Please specify only one.`)
+  }
+
+  if (result.minimal) {
+    result.template = minimalTemplateName
+  }
+
   if (result.template) {
-    template = findTemplate(result.template)
+    template = findTemplate({ name: result.template, templates, verbose })
   }
 
   // Take the result from the command line and use it to populate the options
   const cwd = process.cwd()
   const options: Omit<GetArgsResult, 'template'> & { template?: Template } = {
-    dryRun: result.dryRun ?? false,
     app,
+    dryRun: result.dryRun ?? false,
     name: name ?? '',
     packageManager,
     skipGit: result.skipGit ?? false,
@@ -105,7 +133,7 @@ Examples:
   }
 
   // Get the prompts for any missing options
-  const prompts = await getPrompts({ options: options as GetArgsResult })
+  const prompts = await getPrompts({ items, options: options as GetArgsResult })
 
   // Populate the options with the prompts
   if (prompts.name) {
