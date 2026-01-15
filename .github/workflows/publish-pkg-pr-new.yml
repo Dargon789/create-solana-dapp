@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   # See https://consoledonottrack.com/
   DO_NOT_TRACK: '1'
