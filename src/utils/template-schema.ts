@@ -25,7 +25,7 @@ export const templateJsonGroupSchema = z.object({
 export const templateJsonSchema = z.array(templateJsonGroupSchema)
 
 // Parse templates.json content
-export function parseTemplateJson(content: string) {
+export function parseTemplateJson(content: string): z.SafeParseReturnType<TemplateJson, TemplateJson> {
   try {
     const json = JSON.parse(content)
     return templateJsonSchema.safeParse(json)
@@ -39,7 +39,7 @@ export function parseTemplateJson(content: string) {
         },
       ]),
       success: false,
-    } as const
+    }
   }
 }
 
