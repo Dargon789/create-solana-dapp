@@ -75,7 +75,7 @@ describe('initScriptRename', () => {
       },
     }
     const exampleNames = ['Example']
-    const newNameExamples = ['test-projectExample']
+    const newNameExamples = ['newprojectExample']
     vi.mocked(namesValues).mockImplementation((name) => (name === 'example' ? exampleNames : newNameExamples))
     vi.mocked(ensureTargetPath).mockResolvedValue(true)
 
@@ -106,14 +106,14 @@ describe('initScriptRename', () => {
     }
 
     const exampleNames = ['Example']
-    const newNameExamples = ['test-projectExample']
+    const newNameExamples = ['testprojectExample']
     vi.mocked(namesValues).mockImplementation((name) => (name === 'example' ? exampleNames : newNameExamples))
     vi.mocked(ensureTargetPath).mockResolvedValue(true)
 
     await initScriptRename(args, rename)
 
     expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('initScriptRename: /template/some/path/to/file -> Example -> test-projectExample'),
+      expect.stringContaining('initScriptRename: /template/some/path/to/file -> Example -> testprojectExample'),
     )
     expect(log.warn).toHaveBeenCalledWith('initScriptRename: done')
   })

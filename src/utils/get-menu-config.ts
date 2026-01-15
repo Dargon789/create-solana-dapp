@@ -1,4 +1,4 @@
-import { MenuConfig } from './template-schema'
+import { MenuConfig } from '@beeman/repokit'
 
 // This configuration defines the menu options of the CLI and the groups and keywords they filter on.
 export function getMenuConfig(): MenuConfig {
