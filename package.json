@@ -1,6 +1,10 @@
 {
   "name": "create-solana-dapp",
+<<<<<<< HEAD
   "version": "4.6.0",
+=======
+  "version": "4.8.3",
+>>>>>>> 446fde68 (chore: bump version to 4.8.3)
   "description": "The fastest way to create Solana apps",
   "repository": {
     "name": "solana-foundation/create-solana-dapp",
