@@ -1,5 +1,5 @@
 ---
-"create-solana-dapp": patch
+"create-solana-dapp": minor
 ---
 
 Feat allow templates
