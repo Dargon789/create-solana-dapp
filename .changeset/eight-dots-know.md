@@ -2,4 +2,4 @@
 "create-solana-dapp": minor
 ---
 
-Feat allow templates
+Allow custom templates via local paths and external URLs
