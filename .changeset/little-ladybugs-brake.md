@@ -2,4 +2,4 @@
 "create-solana-dapp": patch
 ---
 
-Update issue templates ai bot automate
+Update issue templates and AI bot automation.
