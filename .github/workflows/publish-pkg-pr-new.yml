@@ -4,26 +4,25 @@ on:
   workflow_dispatch:
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   # See https://consoledonottrack.com/
   DO_NOT_TRACK: '1'
-  
-  version: '2.1'
- orbs:
-  node: circleci/node@x.y
+
 jobs:
-  test:
-    executor: node/default
+  build-and-publish-snapshots-to-npm:
+    runs-on: ubuntu-latest
     steps:
-      - checkout
-      - node/install-bun:
-          version: 1.2.22
-      - node/install-packages:
-          pkg-manager: bun
-      - run: bun run test
-workflows:
-  test_my_app:
-    jobs:
-      - test
+      - name: Checkout
+        uses: actions/checkout@v4
 
+      - name: Install Dependencies
+        uses: ./.github/workflows/actions/install-dependencies
 
+      - name: Run Build Step
+        run: pnpm build
+
+      - name: Publish to pkg.pr.new
+        run: pnpm pkg-pr-new publish
