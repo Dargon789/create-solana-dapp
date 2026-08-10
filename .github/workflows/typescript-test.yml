@@ -3,6 +3,9 @@ name: TypeScript Test
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 env:
   DO_NOT_TRACK: '1'
   TURBO_CONCURRENCY: 1
