@@ -1,7 +1,11 @@
-import { readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { lstat, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const EXCLUDED_DIRECTORIES = new Set(['dist', 'coverage', 'node_modules', '.git', 'tmp'])
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
+}
 
 export async function searchAndReplace(
   rootFolder: string,
@@ -20,8 +24,8 @@ export async function searchAndReplace(
       let newContent = content
 
       for (const [i, fromString] of fromStrings.entries()) {
-        const regex = new RegExp(fromString, 'g')
-        newContent = newContent.replace(regex, toStrings[i])
+        const regex = new RegExp(escapeRegExp(fromString), 'g')
+        newContent = newContent.replace(regex, () => toStrings[i])
         // Make sure we maintain the possible newline at the end of the file
         if (content.endsWith('\n') && !newContent.endsWith('\n')) {
           newContent += '\n'
@@ -36,7 +40,7 @@ export async function searchAndReplace(
           console.log(`${isDryRun ? '[Dry Run] ' : ''}File modified: ${filePath}`)
         }
         for (const [index, fromStr] of fromStrings.entries()) {
-          const count = (newContent.match(new RegExp(toStrings[index], 'g')) || []).length
+          const count = (newContent.match(new RegExp(escapeRegExp(toStrings[index]), 'g')) || []).length
           if (count > 0 && isVerbose) {
             console.log(`  Replaced "${fromStr}" with "${toStrings[index]}" ${count} time(s)`)
           }
@@ -93,11 +97,13 @@ export async function searchAndReplace(
         }
 
         const oldPath = join(directoryPath, entry.name)
-        let newPath = oldPath
+        let newName = entry.name
 
         for (const [i, fromString] of fromStrings.entries()) {
-          newPath = newPath.replace(new RegExp(fromString, 'g'), toStrings[i])
+          newName = newName.replace(new RegExp(escapeRegExp(fromString), 'g'), () => toStrings[i])
         }
+
+        const newPath = join(directoryPath, newName)
 
         if (oldPath !== newPath) {
           if (!isDryRun) {
@@ -118,6 +124,15 @@ export async function searchAndReplace(
   }
 
   try {
+    const rootStats = await lstat(rootFolder)
+    if (rootStats.isFile()) {
+      await processFile(rootFolder)
+      if (isVerbose) {
+        console.log(isDryRun ? 'Dry run completed' : 'Search and replace completed')
+      }
+      return
+    }
+
     await processDirectory(rootFolder)
     await renamePaths(rootFolder)
     if (isVerbose) {

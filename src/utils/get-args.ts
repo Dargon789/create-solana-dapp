@@ -1,22 +1,26 @@
 import { intro, log, outro } from '@clack/prompts'
-import { program } from 'commander'
+import { Command } from 'commander'
 import * as process from 'node:process'
+import { extractTemplateOptionFlags } from './extract-template-option-flags'
 import { fetchTemplateData } from './fetch-template-data'
+import { findTemplate } from './find-template'
 import { AppInfo } from './get-app-info'
 import { GetArgsResult } from './get-args-result'
+import { getMenuConfig } from './get-menu-config'
 import { getPrompts } from './get-prompts'
+import { getTemplatesUrl } from './get-templates-url'
+import { listTemplateIds } from './list-template-ids'
+import { listTemplates } from './list-templates'
 import { listVersions } from './list-versions'
 import { runVersionCheck } from './run-version-check'
-import { PackageManager } from './vendor/package-manager'
-import { getTemplatesUrl } from './get-templates-url'
-import { findTemplate } from './find-template'
-import { getMenuConfig } from './get-menu-config'
-import { listTemplates } from './list-templates'
 import { Template } from './template'
+import { PackageManager } from './vendor/package-manager'
+
+const minimalTemplateName = 'nextjs-anchor'
 
 export async function getArgs(argv: string[], app: AppInfo, pm: PackageManager = 'npm'): Promise<GetArgsResult> {
   // Get the result from the command line
-  const input = program
+  const input = new Command()
     .name(app.name)
     .version(app.version, '-V, --version', help('Output the version number'))
     .argument('[name]', 'Name of the project (default: <prompt>)')
@@ -26,13 +30,15 @@ export async function getArgs(argv: string[], app: AppInfo, pm: PackageManager =
     .option('--bun', help(`Use bun as the package manager`), false)
     .option('-d, --dry-run', help('Dry run (default: false)'))
     .option('-t, --template <template-name>', help('Use a template'))
+    .option('--list-template-ids', help('List available template ids as JSON array'))
     .option('--list-templates', help('List available templates'))
     .option('--list-versions', help('Verify your versions of Anchor, AVM, Rust, and Solana'))
+    .option('--minimal', help(`Select the minimal template (${minimalTemplateName})`), false)
     .option('--skip-git', help('Skip git initialization'))
     .option('--skip-init', help('Skip running the init script'))
     .option('--skip-install', help('Skip installing dependencies'))
     .option('--skip-version-check', help('Skip checking for CLI updates (not recommended)'))
-    .option('--templates-url', help('Url to templates.json'), getTemplatesUrl())
+    .option('--templates-url <url>', help('Url to templates.json'), getTemplatesUrl())
     .option('-v, --verbose', help('Verbose output (default: false)'))
     .helpOption('-h, --help', help('Display help for command'))
     .addHelpText(
@@ -44,7 +50,9 @@ Examples:
   $ ${app.name} my-app --pnpm # or --yarn
       `,
     )
-    .parse(argv)
+
+  const { argv: knownArgv, templateOptions } = extractTemplateOptionFlags(input, argv)
+  input.parse(knownArgv)
 
   // Get the optional name argument (positional)
   const name = input.args[0]
@@ -54,7 +62,7 @@ Examples:
   const verbose = result.verbose ?? false
 
   // Fetch the templates url, parse the template data and create menu items following our menu config
-  const { templates, items } = await fetchTemplateData({ config: getMenuConfig(), url: result.templatesUrl, verbose })
+  const { items, templates } = await fetchTemplateData({ config: getMenuConfig(), url: result.templatesUrl, verbose })
 
   if (result.listVersions) {
     listVersions()
@@ -68,7 +76,13 @@ Examples:
     )
     process.exit(0)
   }
+
+  if (result.listTemplateIds) {
+    console.log(JSON.stringify(listTemplateIds({ templates })))
+    process.exit(0)
+  }
   let packageManager = result.packageManager ?? pm
+  const packageManagerExplicit = Boolean(result.packageManager || result.pnpm || result.yarn || result.bun)
 
   // The 'yarn', 'pnpm' and 'bun' options are mutually exclusive and will override the 'packageManager' option
   const managers = [result.pnpm && 'pnpm', result.yarn && 'yarn', result.bun && 'bun'].filter(Boolean)
@@ -95,6 +109,14 @@ Examples:
 
   let template: Template | undefined
 
+  if (result.template && result.minimal) {
+    throw new Error(`The --minimal flag can't be used in combination with --template. Please specify only one.`)
+  }
+
+  if (result.minimal) {
+    result.template = minimalTemplateName
+  }
+
   if (result.template) {
     template = findTemplate({ name: result.template, templates, verbose })
   }
@@ -102,15 +124,17 @@ Examples:
   // Take the result from the command line and use it to populate the options
   const cwd = process.cwd()
   const options: Omit<GetArgsResult, 'template'> & { template?: Template } = {
-    dryRun: result.dryRun ?? false,
     app,
+    dryRun: result.dryRun ?? false,
     name: name ?? '',
     packageManager,
+    packageManagerExplicit,
     skipGit: result.skipGit ?? false,
     skipInit: result.skipInit ?? false,
     skipInstall: result.skipInstall ?? false,
     targetDirectory: `${cwd}/${name}`,
     template,
+    templateOptions,
     verbose,
   }
 

@@ -19,15 +19,15 @@ vi.mock('@clack/prompts', () => ({
 }))
 
 describe('initScriptRename', () => {
-  const packageJsonName = 'template-project'
+  const packageJsonName = 'foo-bar'
 
   const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
   beforeEach(() => {
     vi.resetAllMocks()
     vi.mocked(getPackageJson).mockReturnValue({
-      path: `${baseArgs.targetDirectory}/package.json`,
       contents: { name: packageJsonName },
+      path: `${baseArgs.targetDirectory}/package.json`,
     })
   })
 
@@ -40,21 +40,115 @@ describe('initScriptRename', () => {
     app: { name: 'test-app', version: '1.0.0' },
     dryRun: false,
     name: 'test-project',
-    targetDirectory: '/template',
     packageManager: 'npm',
     skipGit: false,
     skipInit: false,
     skipInstall: false,
-    template: { name: 'basic', description: 'description', repository: '/template' },
+    targetDirectory: '/template',
+    template: { description: 'description', name: 'basic', repository: '/template' },
     verbose: false,
   }
 
   it('should rename the project based on package.json name', async () => {
-    const args = { ...baseArgs }
+    const args = { ...baseArgs, name: 'my-app' }
 
     await initScriptRename(args)
 
-    expect(searchAndReplace).toHaveBeenCalledWith(args.targetDirectory, [packageJsonName], [args.name], false, false)
+    expect(searchAndReplace).toHaveBeenCalledWith(
+      args.targetDirectory,
+      ['FooBar', 'foo-bar', 'foo_bar', 'foobar'],
+      ['MyApp', 'my-app', 'my_app', 'myapp'],
+      false,
+      false,
+    )
+  })
+
+  it('should rename spaced display names to project display names', async () => {
+    const args = { ...baseArgs, name: 'my-unicorn2' }
+    const fromNames = ['ExampleApp', 'EXAMPLE_APP', 'example-app', 'Example App', 'exampleApp']
+    const rename = {
+      'Example App': {
+        in: ['app.json'],
+        to: '{{name}}',
+      },
+    }
+    const toNames = ['MyUnicorn2', 'MY_UNICORN2', 'my-unicorn2', 'my-unicorn2', 'myUnicorn2']
+    vi.mocked(namesValues).mockImplementation((name) => (name === 'Example App' ? fromNames : toNames))
+    vi.mocked(ensureTargetPath).mockResolvedValue(true)
+
+    await initScriptRename(args, rename)
+
+    expect(searchAndReplace).toHaveBeenLastCalledWith(
+      '/template/app.json',
+      fromNames,
+      ['MyUnicorn2', 'MY_UNICORN2', 'my-unicorn2', 'My Unicorn2', 'myUnicorn2'],
+      false,
+      false,
+    )
+  })
+
+  it('should rename spaced display names using the real names output', async () => {
+    const args = { ...baseArgs, name: 'my-unicorn2' }
+    const { namesValues: actualNamesValues } =
+      await vi.importActual<typeof import('../src/utils/vendor/names')>('../src/utils/vendor/names')
+    const rename = {
+      'Example App': {
+        in: ['app.json'],
+        to: '{{name}}',
+      },
+    }
+    vi.mocked(namesValues).mockImplementation(actualNamesValues)
+    vi.mocked(ensureTargetPath).mockResolvedValue(true)
+
+    await initScriptRename(args, rename)
+
+    expect(searchAndReplace).toHaveBeenLastCalledWith(
+      '/template/app.json',
+      ['ExampleApp', 'EXAMPLE_APP', 'example-app', 'Example App', 'exampleApp'],
+      ['MyUnicorn2', 'MY_UNICORN2', 'my-unicorn2', 'My Unicorn2', 'myUnicorn2'],
+      false,
+      false,
+    )
+  })
+
+  it('should preserve punctuation in exact replacement values', async () => {
+    const args = { ...baseArgs }
+    const rename = {
+      'inference-model': {
+        in: ['request.json'],
+        to: 'qwen3:0.6b',
+      },
+    }
+    vi.mocked(namesValues).mockImplementation((name) =>
+      name === 'inference-model'
+        ? ['InferenceModel', 'INFERENCE_MODEL', 'inference-model', 'inference-model', 'inferenceModel']
+        : ['Qwen306b', 'QWEN306B', 'qwen306b', 'qwen3:0.6b', 'qwen306b'],
+    )
+    vi.mocked(ensureTargetPath).mockResolvedValue(true)
+
+    await initScriptRename(args, rename)
+
+    expect(searchAndReplace).toHaveBeenLastCalledWith(
+      '/template/request.json',
+      ['InferenceModel', 'INFERENCE_MODEL', 'inference-model', 'inferenceModel'],
+      ['Qwen306b', 'QWEN306B', 'qwen3:0.6b', 'qwen306b'],
+      false,
+      false,
+    )
+  })
+
+  it('should use dry run mode when replacing the project name from package.json', async () => {
+    const args = { ...baseArgs, dryRun: true }
+
+    await initScriptRename(args)
+
+    expect(searchAndReplace).toHaveBeenCalledWith(
+      args.targetDirectory,
+      expect.any(Array),
+      expect.any(Array),
+      true,
+      false,
+    )
   })
 
   it('should return early if no rename object is provided', async () => {
@@ -70,12 +164,12 @@ describe('initScriptRename', () => {
     const args = { ...baseArgs, verbose: true }
     const rename = {
       example: {
+        in: ['some/path/to/file'],
         to: '{{name}}Example',
-        paths: ['some/path/to/file'],
       },
     }
     const exampleNames = ['Example']
-    const newNameExamples = ['newprojectExample']
+    const newNameExamples = ['test-projectExample']
     vi.mocked(namesValues).mockImplementation((name) => (name === 'example' ? exampleNames : newNameExamples))
     vi.mocked(ensureTargetPath).mockResolvedValue(true)
 
@@ -90,6 +184,49 @@ describe('initScriptRename', () => {
     )
   })
 
+  it('should still replace using the deprecated `paths` and warn about it', async () => {
+    const args = { ...baseArgs }
+    const rename = {
+      example: {
+        paths: ['some/path/to/file'],
+        to: '{{name}}Example',
+      },
+    }
+    const exampleNames = ['Example']
+    const newNameExamples = ['test-projectExample']
+    vi.mocked(namesValues).mockImplementation((name) => (name === 'example' ? exampleNames : newNameExamples))
+    vi.mocked(ensureTargetPath).mockResolvedValue(true)
+
+    await initScriptRename(args, rename)
+
+    expect(searchAndReplace).toHaveBeenCalledWith(
+      expect.stringContaining('some/path/to/file'),
+      exampleNames,
+      newNameExamples,
+      args.dryRun,
+      args.verbose,
+    )
+    expect(log.warn).toHaveBeenCalledWith(
+      `initScriptRename: 'paths' is deprecated and is removed in the next major version, use 'in' instead: example`,
+    )
+  })
+
+  it('should not warn about `paths` when only `in` is used', async () => {
+    const args = { ...baseArgs }
+    const rename = {
+      example: {
+        in: ['some/path/to/file'],
+        to: '{{name}}Example',
+      },
+    }
+    vi.mocked(namesValues).mockReturnValue(['Example'])
+    vi.mocked(ensureTargetPath).mockResolvedValue(true)
+
+    await initScriptRename(args, rename)
+
+    expect(log.warn).not.toHaveBeenCalled()
+  })
+
   it('should log a message when verbose and no rename object is provided', async () => {
     const args: GetArgsResult = { ...baseArgs, verbose: true }
     await initScriptRename(args, undefined)
@@ -100,20 +237,20 @@ describe('initScriptRename', () => {
     const args = { ...baseArgs, verbose: true }
     const rename = {
       example: {
+        in: ['some/path/to/file'],
         to: '{{name}}Example',
-        paths: ['some/path/to/file'],
       },
     }
 
     const exampleNames = ['Example']
-    const newNameExamples = ['testprojectExample']
+    const newNameExamples = ['test-projectExample']
     vi.mocked(namesValues).mockImplementation((name) => (name === 'example' ? exampleNames : newNameExamples))
     vi.mocked(ensureTargetPath).mockResolvedValue(true)
 
     await initScriptRename(args, rename)
 
     expect(log.warn).toHaveBeenCalledWith(
-      expect.stringContaining('initScriptRename: /template/some/path/to/file -> Example -> testprojectExample'),
+      expect.stringContaining('initScriptRename: /template/some/path/to/file -> Example -> test-projectExample'),
     )
     expect(log.warn).toHaveBeenCalledWith('initScriptRename: done')
   })
@@ -122,8 +259,8 @@ describe('initScriptRename', () => {
     const args = { ...baseArgs, verbose: true }
     const rename = {
       example: {
+        in: ['nonexistent/path/to/file'],
         to: '{{name}}Example',
-        paths: ['nonexistent/path/to/file'],
       },
     }
 

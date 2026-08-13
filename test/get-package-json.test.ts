@@ -36,13 +36,12 @@ describe('getPackageJson', () => {
 
     expect(() => getPackageJson(targetDirectory)).toThrow(`Invalid package.json: [
   {
+    "expected": "record",
     "code": "invalid_type",
-    "expected": "object",
-    "received": "string",
     "path": [
       "scripts"
     ],
-    "message": "Expected object, received string"
+    "message": "Invalid input: expected record, received string"
   }
 ]`)
   })
@@ -53,7 +52,7 @@ describe('getPackageJson', () => {
     fs.mkdirSync(targetDirectory)
     fs.writeFileSync(path, JSON.stringify(contents))
 
-    expect(getPackageJson(targetDirectory)).toEqual({ path, contents })
+    expect(getPackageJson(targetDirectory)).toEqual({ contents, path })
   })
 
   it('should return package.json content with only a name', () => {
@@ -62,7 +61,7 @@ describe('getPackageJson', () => {
     fs.mkdirSync(targetDirectory)
     fs.writeFileSync(path, JSON.stringify(contents))
 
-    expect(getPackageJson(targetDirectory)).toEqual({ path, contents })
+    expect(getPackageJson(targetDirectory)).toEqual({ contents, path })
   })
 
   it('should return package.json content a and parse name, scripts ignoring other fields', () => {
@@ -71,6 +70,6 @@ describe('getPackageJson', () => {
     fs.mkdirSync(targetDirectory)
     fs.writeFileSync(path, JSON.stringify(contents))
 
-    expect(getPackageJson(targetDirectory)).toEqual({ path, contents })
+    expect(getPackageJson(targetDirectory)).toEqual({ contents, path })
   })
 })

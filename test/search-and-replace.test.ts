@@ -22,7 +22,7 @@ describe('searchAndReplace', () => {
 
   afterEach(async () => {
     // Clean up the temporary directory after each test
-    await rm(tempDir, { recursive: true, force: true })
+    await rm(tempDir, { force: true, recursive: true })
   })
 
   it('should replace content and rename files in dry run mode without making changes', async () => {
@@ -53,6 +53,25 @@ describe('searchAndReplace', () => {
 
     // Verify that the old file was renamed
     await expect(access(join(tempDir, 'oldname.txt'))).rejects.toThrow()
+  })
+
+  it('should replace content when the target is an individual file', async () => {
+    const filePath = join(tempDir, 'file1.txt')
+
+    await searchAndReplace(filePath, ['Hello'], ['Hi'])
+
+    expect(await readFile(filePath, 'utf8')).toBe('Hi world')
+  })
+
+  it('should treat search values as literal strings', async () => {
+    await writeFile(join(tempDir, 'foo.bar.txt'), 'foo.bar fooXbar')
+    await writeFile(join(tempDir, 'fooXbar.txt'), 'fooXbar')
+
+    await searchAndReplace(tempDir, ['foo.bar'], ['baz'], false, false)
+
+    expect(await readFile(join(tempDir, 'baz.txt'), 'utf8')).toBe('baz fooXbar')
+    expect(await readFile(join(tempDir, 'fooXbar.txt'), 'utf8')).toBe('fooXbar')
+    await expect(access(join(tempDir, 'foo.bar.txt'))).rejects.toThrow()
   })
 
   it('should exclude directories like node_modules and .git from processing', async () => {
@@ -98,7 +117,7 @@ describe('searchAndReplace', () => {
   })
 
   it('should handle errors gracefully', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error')
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     // Mock the file system and simulate an error for readFile
     mockFs({
